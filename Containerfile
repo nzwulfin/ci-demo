@@ -1,4 +1,4 @@
-FROM registry.redhat.io/rhel10/rhel-bootc:10.0-1749656011
+FROM registry.redhat.io/rhel9/rhel-bootc:9.6-1749484483
 
 #Install base software
 RUN dnf -y install tmux mkpasswd
