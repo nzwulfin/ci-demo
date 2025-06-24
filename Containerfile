@@ -1,6 +1,7 @@
 FROM registry.redhat.io/rhel9/rhel-bootc:9.6-1749484483
 MAINTAINER sysadmins@example.com
-LABEL "CIS Sever Level 1 base image"
+LABEL com.example.image.source "RHEL 9.6"
+LABEL com.example.image.type "CIS Sever Level 1 base image"
 
 #Install base software
 RUN dnf -y install tmux mkpasswd openscap-utils scap-security-guide && dnf clean all
