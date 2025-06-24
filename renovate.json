@@ -2,5 +2,35 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended"
+  ],
+  ,
+  "hostRules": [
+    {
+      "matchHost": "registry.redhat.io",
+      "username": "{{ secrets.SOURCE_REGISTRY_USER }}",
+      "password": "{{ secrets.SOURCE_REGISTRY_PASSWORD }}"
+    }
+  ],
+  "packageRules": [
+    {
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchPackageNames": [
+        "registry.access.redhat.com/rhel",
+        "registry.access.redhat.com/rhel-atomic",
+        "registry.access.redhat.com/rhel-init",
+        "registry.access.redhat.com/rhel-minimal",
+        "registry.access.redhat.com/rhceph/**",
+        "registry.access.redhat.com/rhgs3/**",
+        "registry.access.redhat.com/rhel7**",
+        "registry.access.redhat.com/rhel8/**",
+        "registry.access.redhat.com/rhel9/**",
+        "registry.access.redhat.com/rhscl/**",
+        "registry.access.redhat.com/ubi*{,/}**",
+        "redhat/**"
+      ],
+      "versioning": "redhat"
+    }
   ]
 }
