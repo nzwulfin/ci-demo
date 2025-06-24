@@ -31,14 +31,13 @@ jobs:
       # Destination registry for built images
       # DEST_REGISTRY_HOST: "ghcr.io"
       DEST_REGISTRY_HOST: "quay.io"
-      QUAY_REPO: "mmicene"
       # Destination credentials - uses platform variables and secrets
       # DEST_REGISTRY_USER: "${{ github.actor }}"
       # DEST_REGISTRY_PASSWORD: "${{ secrets.GITHUB_TOKEN }}"
 
       # Destination image namespace and name (eg: myrepo/myimage)
       # DEST_IMAGE: "${{ github.actor }}/${{github.event.repository.name}}"
-      DEST_IMAGE: "$QUAY_REPO/${{github.event.repository.name}}"
+      DEST_IMAGE: "mmicene/${{github.event.repository.name}}"
 
     container:
       image: registry.access.redhat.com/ubi9/ubi
