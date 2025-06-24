@@ -26,13 +26,15 @@ jobs:
       CONTAINERFILE: Containerfile
 
       # Destination image namespace and name (eg: myrepo/myimage)
-      DEST_IMAGE: "${{ github.actor }}/${{github.event.repository.name}}"
+      # DEST_IMAGE: "${{ github.actor }}/${{github.event.repository.name}}"
+      DEST_IMAGE: "${{ secrets.DEST_REGISTRY_USER }}/${{github.event.repository.name}}"
 
       # List of tags to publish
       TAGLIST: latest ${{ github.sha }} ${{ github.ref_name }}
 
       # Destination registry for built images
-      DEST_REGISTRY_HOST: "ghcr.io"
+      # DEST_REGISTRY_HOST: "ghcr.io"
+      DEST_REGISTRY_HOST: "quay.io"
       # Destination credentials - uses platform variables and secrets
       # DEST_REGISTRY_USER: "${{ github.actor }}"
       # DEST_REGISTRY_PASSWORD: "${{ secrets.GITHUB_TOKEN }}"
@@ -78,16 +80,16 @@ jobs:
           tags: ${{ env.TAGLIST }}
           containerfiles: ${{ env.CONTAINERFILE }}
 
-      - name: Log in to the GitHub Container registry
+      - name: Log in to the destination container registry
         uses: redhat-actions/podman-login@v1
         with:
           registry: ${{ env.DEST_REGISTRY_HOST }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ secrets.DEST_REGISTRY_USER }}
+          password: ${{ secrets.DEST_REGISTRY_PASSWORD }}
           auth_file_path: /run/containers/0/auth.json
 
-      - name: Push to GitHub Container Repository
-        id: push-to-ghcr
+      - name: Push to destination container Repository
+        id: push-to-dest
         uses: redhat-actions/push-to-registry@v2
         with:
           image: ${{ steps.build-image.outputs.image }}
