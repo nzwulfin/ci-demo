@@ -1,8 +1,9 @@
 FROM registry.redhat.io/rhel9/rhel-bootc:9.6-1749484483
 
+# Set up some variables and labels to ID images in our environments
 MAINTAINER sysadmins@example.com
+# RHEL version inherited from bootc base as redhat.version-id and release
 LABEL vendor="Example Co" \
-      source="RHEL 9.6" \
       profile="CIS Sever Level 1 base image"
 ENV profileID=cis_server_l1
 
