@@ -3,7 +3,6 @@
   "extends": [
     "config:recommended"
   ],
-  ,
   "hostRules": [
     {
       "matchHost": "registry.redhat.io",
