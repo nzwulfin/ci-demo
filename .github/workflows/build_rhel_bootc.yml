@@ -37,7 +37,7 @@ jobs:
 
       # Destination image namespace and name (eg: myrepo/myimage)
       # DEST_IMAGE: "${{ github.actor }}/${{github.event.repository.name}}"
-      DEST_IMAGE: "$${{ secrets.DEST_REGISTRY_USER }}/${{github.event.repository.name}}"
+      DEST_IMAGE: "${{ secrets.DEST_REGISTRY_USER }}/${{github.event.repository.name}}"
 
     container:
       image: registry.access.redhat.com/ubi9/ubi
