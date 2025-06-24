@@ -1,4 +1,6 @@
 FROM registry.redhat.io/rhel9/rhel-bootc:9.6-1749484483
+MAINTAINER sysadmins@example.com
+LABEL "CIS Sever Level 1 base image"
 
 #Install base software
 RUN dnf -y install tmux mkpasswd openscap-utils scap-security-guide && dnf clean all
@@ -23,7 +25,7 @@ echo "Welcome to the bootc-http instance!" > /usr/share/www/html/index.html
 EORUN
 
 # Run OSCAP scan and hardening
-RUN oscap-im --profile cis /usr/share/xml/scap/ssg/content/ssg-rhel9-ds.xml
+RUN oscap-im --profile cis_server_l1 /usr/share/xml/scap/ssg/content/ssg-rhel9-ds.xml
 
 # Mask the auto timer so we can control this in a downstream image or host
 RUN systemctl mask bootc-fetch-apply-updates.timer
