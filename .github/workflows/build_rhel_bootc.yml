@@ -27,7 +27,7 @@ jobs:
 
       # Destination image namespace and name (eg: myrepo/myimage)
       # DEST_IMAGE: "${{ github.actor }}/${{github.event.repository.name}}"
-      DEST_IMAGE: "${{ secrets.DEST_REGISTRY_USER }}/${{github.event.repository.name}}"
+      DEST_IMAGE: "${{ env.QUAY_REPO }}/${{github.event.repository.name}}"
 
       # List of tags to publish
       TAGLIST: latest ${{ github.sha }} ${{ github.ref_name }}
@@ -35,6 +35,7 @@ jobs:
       # Destination registry for built images
       # DEST_REGISTRY_HOST: "ghcr.io"
       DEST_REGISTRY_HOST: "quay.io"
+      QUAY_REPO: mmicene
       # Destination credentials - uses platform variables and secrets
       # DEST_REGISTRY_USER: "${{ github.actor }}"
       # DEST_REGISTRY_PASSWORD: "${{ secrets.GITHUB_TOKEN }}"
