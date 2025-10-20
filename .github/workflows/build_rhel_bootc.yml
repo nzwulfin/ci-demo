@@ -48,7 +48,7 @@ jobs:
 
     steps:
       - name: Clone the repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Get container tools in UBI builder
         run: dnf -y install podman buildah skopeo
