@@ -6,8 +6,8 @@
   "hostRules": [
     {
       "matchHost": "registry.redhat.io",
-      "username": "{{ secrets.SOURCE_REGISTRY_USER }}",
-      "password": "{{ secrets.SOURCE_REGISTRY_PASSWORD }}"
+      "username": "{{ secrets.RENO_REG_USER }}",
+      "password": "{{ secrets.RENO_REG_PASS }}"
     }
   ],
   "packageRules": [
