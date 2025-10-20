@@ -7,8 +7,7 @@
     {
       "matchHost": "registry.redhat.io",
       "username": "{{ secrets.RENO_REG_USER }}",
-      "password": "{{ secrets.RENO_REG_PASS }}"
-    }
+      "password": "{{ secrets.RENO_REG_PASS }}"}
   ],
   "packageRules": [
     {
@@ -16,6 +15,8 @@
         "docker"
       ],
       "matchPackageNames": [
+        "registry.redhat.io/rhel9/**",
+        "registry.redhat.io/rhel10/**",
         "registry.access.redhat.com/rhel",
         "registry.access.redhat.com/rhel-atomic",
         "registry.access.redhat.com/rhel-init",
