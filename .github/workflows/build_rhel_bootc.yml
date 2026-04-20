@@ -43,7 +43,7 @@ jobs:
       image: registry.access.redhat.com/ubi9/ubi
       options: --privileged
       volumes:
-        - /var/lib/containers:/var/lib/containers
+        - /var/lib/containerd
     permissions:
       contents: write
       packages: write
