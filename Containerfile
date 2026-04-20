@@ -21,7 +21,7 @@ RUN <<EORUN
 set -xeuo pipefail
 
 #Install web server and relocate the webroot to managed by this image
-dnf -y install httpd && dnf clean all
+dnf -y install httpd cockpit cockpit-pcp && dnf clean all
 systemctl enable httpd
 mv /var/www /usr/share/www
 sed -ie 's,/var/www,/usr/share/www,' /etc/httpd/conf/httpd.conf
