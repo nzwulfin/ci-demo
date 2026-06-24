@@ -129,7 +129,6 @@ jobs:
           podman login "${DEST_REGISTRY_HOST}" \
             -u "${DEST_REGISTRY_USER}" -p "${DEST_REGISTRY_PASSWORD}"
           podman --root "${STORAGE_ROOT}/storage" push \
-            --retry 3 \
             --digestfile ${{ runner.temp }}/digest \
             "${DEST_REGISTRY_HOST}/${DEST_IMAGE}:latest"
           echo "digest=$(cat ${{ runner.temp }}/digest)" >> $GITHUB_OUTPUT
