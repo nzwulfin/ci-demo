@@ -111,13 +111,14 @@ jobs:
             -e CONTAINERFILE \
             -e RHT_ORGID -e RHT_ACT_KEY \
             -e SOURCE_REGISTRY_USER -e SOURCE_REGISTRY_PASSWORD \
+            -e DEST_REGISTRY_HOST -e DEST_IMAGE \
             registry.access.redhat.com/ubi9/ubi bash -c '
               set -euo pipefail
               dnf -y install buildah
               subscription-manager register --org="${RHT_ORGID}" --activationkey="${RHT_ACT_KEY}"
               trap "subscription-manager unregister" EXIT
               buildah login -u "${SOURCE_REGISTRY_USER}" -p "${SOURCE_REGISTRY_PASSWORD}" "${SOURCE_REGISTRY_HOST}"
-              buildah bud -f "/build/${CONTAINERFILE}" -t  ${DEST_REGISTRY_HOST}/${DEST_IMAGE}:latest /build
+              buildah bud -f "/build/${CONTAINERFILE}" -t ${DEST_REGISTRY_HOST}/${DEST_IMAGE}:latest /build
             '
 
       - name: Push image
@@ -126,7 +127,7 @@ jobs:
         run: |
           STORAGE_ROOT=$(podman volume inspect build-storage --format '{{.Mountpoint}}')
           podman login "${DEST_REGISTRY_HOST}" \
-            -u "${DEST_REGISTRY_USER}" -p"${DEST_REGISTRY_PASSWORD}"
+            -u "${DEST_REGISTRY_USER}" -p "${DEST_REGISTRY_PASSWORD}"
           podman --root "${STORAGE_ROOT}/storage" push \
             --retry 3 \
             --digestfile ${{ runner.temp }}/digest \
@@ -172,7 +173,7 @@ jobs:
         run: |
           set -euo pipefail
           podman login "${DEST_REGISTRY_HOST}" \
-            -u "${DEST_REGISTRY_USER}" -p"${DEST_REGISTRY_PASSWORD}"
+            -u "${DEST_REGISTRY_USER}" -p "${DEST_REGISTRY_PASSWORD}"
           podman manifest create localhost/tmp-manifest:build
           for f in /tmp/digests/digest-*/*; do
             arch=$(basename $(dirname "$f"))
