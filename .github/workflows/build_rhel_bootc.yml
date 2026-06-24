@@ -69,11 +69,19 @@ jobs:
           fi
           echo "taglist=$TAGS" >> $GITHUB_OUTPUT
 
-    container:
-      image: registry.access.redhat.com/ubi9/ubi
-      options: --privileged
-      volumes:
-        - buildah_storage:/var/lib/containers
+  build:
+    needs: compute-tags
+    name: build / ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
       packages: write
@@ -81,8 +89,7 @@ jobs:
       TAGLIST: ${{ needs.compute-tags.outputs.taglist }}
 
     steps:
-      - name: Clone the repository
-        uses: actions/checkout@v6
+      - uses: actions/checkout@v6
 
       - name: Install updated container tools
         run: |
