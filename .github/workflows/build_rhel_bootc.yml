@@ -1,103 +1,187 @@
-name: Build RHEL bootc image with GHA
+name: Build multi-arch RHEL bootc images with native container tools
+
+# Allows for manual builds on any branch
+# Will build and push images on release publication via GitHub and pushes to the main branch
+# Will build images only on opening a PR, can be extended for testing and gating
 on:
   workflow_dispatch:
   push:
-    tags:
-      - '*'
+    branches: [main]
+  release:
+    types: [published]
+  pull_request:
+    branches: [main]
+
+env:
+  # Containerfile relative to the repository top level
+  CONTAINERFILE: Containerfile
+  # Subscription Manager credentials - example uses repository secrets
+  RHT_ORGID: ${{ secrets.RHT_ORGID }}
+  RHT_ACT_KEY: ${{ secrets.RHT_ACT_KEY }}
+
+  # Source registry for base image
+  SOURCE_REGISTRY_HOST: "registry.redhat.io"
+  # Source credentials - example uses repository secrets
+  SOURCE_REGISTRY_USER: ${{ secrets.SOURCE_REGISTRY_USER }}
+  SOURCE_REGISTRY_PASSWORD: ${{ secrets.SOURCE_REGISTRY_PASSWORD }}
+
+  # Destination registry for built images
+  # Example is set for pushing to Quay, can target any registry
+  # DEST_REGISTRY_HOST: "ghcr.io"
+  DEST_REGISTRY_HOST: "quay.io"
+  # Destination image namespace and name (eg: myrepo/myimage)
+  # DEST_IMAGE: "${{ github.repository }}"
+  DEST_IMAGE: "${{ secrets.DEST_REGISTRY_USER }}/${{github.event.repository.name}}"
+  # Destination credentials - example uses platform variables and secrets
+  # DEST_REGISTRY_USER: ${{ github.actor }}
+  # DEST_REGISTRY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
+  DEST_REGISTRY_USER: ${{ secrets.DEST_REGISTRY_USER }}
+  DEST_REGISTRY_PASSWORD: ${{ secrets.DEST_REGISTRY_PASSWORD }}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  rhel-bootc-image-build:
-    name: Build RHEL bootc image with repo access
-    runs-on: ubuntu-latest
-    env:
-      # Disable Subscription Manager container passthrough
-      SMDEV_CONTAINER_OFF: 1
-      # Subscription Manager credentials - uses repository secrets
-      # RHT_ORGID: "${{ secrets.RHT_ORGID }}"
-      # RHT_ACT_KEY: "${{ secrets.RHT_ACT_KEY }}"
-      
-      # Source registry for base image
-      SOURCE_REGISTRY_HOST: "registry.redhat.io"
-      # Source credentials - uses repository secrets
-      # SOURCE_REGISTRY_USER: "${{ secrets.SOURCE_REGISTRY_USER }}"
-      # SOURCE_REGISTRY_PASSWORD: "${{ secrets.SOURCE_REGISTRY_PASSWORD }}"
+  compute-tags:
+    # Builds the list of image tags to apply based on the trigger:
+    # always includes 'latest' and the commit SHA; adds the sanitized
+    # branch name for non-main workflow_dispatch runs; adds the version
+    # tag for published GitHub Releases.
+    runs-on: ubuntu-24.04
+    outputs:
+      taglist: ${{ steps.tags.outputs.taglist }}
+    steps:
+      - name: Compute tag list
+        id: tags
+        run: |
+          set -euo pipefail
+          TAGS="latest ${{ github.sha }}"
+          REF="${{ github.ref_name }}"
+          SAFE_REF="${REF//\//-}"
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            TAGS="$TAGS $SAFE_REF"
+          elif [ "$SAFE_REF" != "main" ]; then
+            TAGS="$TAGS $SAFE_REF"
+          fi
+          echo "taglist=$TAGS" >> $GITHUB_OUTPUT
 
-      # Containerfile to build
-      CONTAINERFILE: Containerfile
-
-      # List of tags to publish
-      TAGLIST: latest ${{ github.sha }} ${{ github.ref_name }}
-
-      # Destination registry for built images
-      # DEST_REGISTRY_HOST: "ghcr.io"
-      DEST_REGISTRY_HOST: "quay.io"
-      # Destination credentials - uses platform variables and secrets
-      # DEST_REGISTRY_USER: "${{ github.actor }}"
-      # DEST_REGISTRY_PASSWORD: "${{ secrets.GITHUB_TOKEN }}"
-
-      # Destination image namespace and name (eg: myrepo/myimage)
-      # DEST_IMAGE: "${{ github.actor }}/${{github.event.repository.name}}"
-      DEST_IMAGE: "${{ secrets.DEST_REGISTRY_USER }}/${{github.event.repository.name}}"
-
-    container:
-      image: registry.access.redhat.com/ubi9/ubi
-      options: --privileged
-      volumes:
-        - /var/lib/containers:/var/lib/containers
+  build:
+    needs: compute-tags
+    name: build / ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     permissions:
-      contents: write
+      contents: read
       packages: write
+    env:
+      TAGLIST: ${{ needs.compute-tags.outputs.taglist }}
 
     steps:
-      - name: Clone the repository
-        uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
-      - name: Get container tools in UBI builder
-        run: dnf -y install podman buildah skopeo
-
-      - name: Access a subscription via activation key
-        run: subscription-manager register --org=${{ secrets.RHT_ORGID }} --activationkey=${{ secrets.RHT_ACT_KEY }}
-
-      # workaround for https://github.com/redhat-actions/podman-login/issues/42 since the docker config from the host doesn't come up to the container
-      - name: Workaround open podman-login action issue
-        env:
-          auth: "{ \"auths\": {} }"
+      - name: Install updated container tools
         run: |
-          mkdir -p $HOME/.docker
-          echo $auth > $HOME/.docker/config.json
+          set -euo pipefail
+          if [ "$(dpkg --print-architecture)" = "amd64" ]; then
+            mirror="http://azure.archive.ubuntu.com/ubuntu"
+          else
+            mirror="http://ports.ubuntu.com/ubuntu-ports"
+          fi
+          echo "deb ${mirror} plucky universe main" | sudo tee /etc/apt/sources.list.d/plucky.list
+          sudo apt-get update -q
+          sudo apt-get install -y --allow-downgrades crun/plucky podman/plucky
 
-      - name: Log in to the RHT terms based registry
-        uses: redhat-actions/podman-login@v1
-        with:
-          registry: ${{ env.SOURCE_REGISTRY_HOST }}
-          username: ${{ secrets.SOURCE_REGISTRY_USER }}
-          password: ${{ secrets.SOURCE_REGISTRY_PASSWORD }}
-          auth_file_path: /run/containers/0/auth.json
+      - name: Build image
+        run: |
+          podman volume create build-storage
+          podman run --rm --privileged \
+            -v build-storage:/var/lib/containers \
+            -v ${{ github.workspace }}:/build \
+            -e SMDEV_CONTAINER_OFF=1 \
+            -e SOURCE_REGISTRY_HOST \
+            -e CONTAINERFILE \
+            -e RHT_ORGID -e RHT_ACT_KEY \
+            -e SOURCE_REGISTRY_USER -e SOURCE_REGISTRY_PASSWORD \
+            registry.access.redhat.com/ubi9/ubi bash -c '
+              set -euo pipefail
+              dnf -y install buildah
+              subscription-manager register --org="${RHT_ORGID}" --activationkey="${RHT_ACT_KEY}"
+              trap "subscription-manager unregister" EXIT
+              buildah login -u "${SOURCE_REGISTRY_USER}" -p "${SOURCE_REGISTRY_PASSWORD}" "${SOURCE_REGISTRY_HOST}"
+              buildah bud -f "/build/${CONTAINERFILE}" -t  ${DEST_REGISTRY_HOST}/${DEST_IMAGE}:latest /build
+            '
 
-      - name: Use buildah bud to create the image
-        id: build-image
-        uses: redhat-actions/buildah-build@v2
-        with:
-          image: ${{ env.DEST_IMAGE }}
-          tags: ${{ env.TAGLIST }}
-          containerfiles: ${{ env.CONTAINERFILE }}
+      - name: Push image
+        if: github.event_name != 'pull_request'
+        id: push
+        run: |
+          STORAGE_ROOT=$(podman volume inspect build-storage --format '{{.Mountpoint}}')
+          podman login "${DEST_REGISTRY_HOST}" \
+            -u "${DEST_REGISTRY_USER}" -p"${DEST_REGISTRY_PASSWORD}"
+          podman --root "${STORAGE_ROOT}/storage" push \
+            --retry 3 \
+            --digestfile ${{ runner.temp }}/digest \
+            "${DEST_REGISTRY_HOST}/${DEST_IMAGE}:latest"
+          echo "digest=$(cat ${{ runner.temp }}/digest)" >> $GITHUB_OUTPUT
 
-      - name: Log in to the destination container registry
-        uses: redhat-actions/podman-login@v1
-        with:
-          registry: ${{ env.DEST_REGISTRY_HOST }}
-          username: ${{ secrets.DEST_REGISTRY_USER }}
-          password: ${{ secrets.DEST_REGISTRY_PASSWORD }}
-          auth_file_path: /run/containers/0/auth.json
-
-      - name: Push to destination container Repository
-        id: push-to-dest
-        uses: redhat-actions/push-to-registry@v2
-        with:
-          image: ${{ steps.build-image.outputs.image }}
-          tags: ${{ steps.build-image.outputs.tags }}
-          registry: ${{ env.DEST_REGISTRY_HOST }}
-
-      - name: Clean up the subscription
+      - name: Cleanup build storage
         if: always()
-        run: subscription-manager unregister
+        run: podman volume rm build-storage
+
+      - name: Upload digest
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v7
+        with:
+          name: digest-${{ matrix.arch }}
+          path: ${{ runner.temp }}/digest
+
+  manifest:
+    name: Create multi-arch manifest
+    needs: [build, compute-tags]
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      packages: write
+    env:
+      TAGLIST: ${{ needs.compute-tags.outputs.taglist }}
+
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@v8
+        with:
+          pattern: digest-*
+          path: /tmp/digests
+
+      - name: Install updated container tools
+        run: |
+          set -euo pipefail
+          echo "deb http://azure.archive.ubuntu.com/ubuntu plucky universe main" | sudo tee /etc/apt/sources.list.d/plucky.list
+          sudo apt-get update -q
+          sudo apt-get install -y --allow-downgrades podman/plucky
+
+      - name: Create and push manifest
+        run: |
+          set -euo pipefail
+          podman login "${DEST_REGISTRY_HOST}" \
+            -u "${DEST_REGISTRY_USER}" -p"${DEST_REGISTRY_PASSWORD}"
+          podman manifest create localhost/tmp-manifest:build
+          for f in /tmp/digests/digest-*/*; do
+            arch=$(basename $(dirname "$f"))
+            arch="${arch#digest-}"
+            podman manifest add --arch "${arch}" localhost/tmp-manifest:build \
+              ${{ env.DEST_REGISTRY_HOST }}/${{ env.DEST_IMAGE }}@$(cat "$f")
+          done
+          for tag in ${{ env.TAGLIST }}; do
+            podman manifest push --all localhost/tmp-manifest:build \
+              ${{ env.DEST_REGISTRY_HOST }}/${{ env.DEST_IMAGE }}:${tag}
+          done
+          podman manifest rm localhost/tmp-manifest:build
