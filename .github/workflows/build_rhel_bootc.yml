@@ -45,9 +45,9 @@ concurrency:
 jobs:
   compute-tags:
     # Builds the list of image tags to apply based on the trigger:
-    # always includes 'latest' and the commit SHA; adds the sanitized
-    # branch name for non-main workflow_dispatch runs; adds the version
-    # tag for published GitHub Releases.
+    # always includes the commit SHA; adds 'latest' only for pushes to
+    # main or published GitHub Releases; adds the version tag for
+    # releases; adds the sanitized branch name for all other triggers.
     runs-on: ubuntu-24.04
     outputs:
       taglist: ${{ steps.tags.outputs.taglist }}
@@ -56,11 +56,14 @@ jobs:
         id: tags
         run: |
           set -euo pipefail
-          TAGS="latest ${{ github.sha }}"
+          TAGS="${{ github.sha }}"
           REF="${{ github.ref_name }}"
           SAFE_REF="${REF//\//-}"
-          if [ "${{ github.ref_type }}" = "tag" ]; then
-            TAGS="$TAGS $SAFE_REF"
+          EVENT="${{ github.event_name }}"
+          if [ "$EVENT" = "release" ]; then
+            TAGS="latest $TAGS $SAFE_REF"
+          elif [ "$EVENT" = "push" ] && [ "$SAFE_REF" = "main" ]; then
+            TAGS="latest $TAGS"
           elif [ "$SAFE_REF" != "main" ]; then
             TAGS="$TAGS $SAFE_REF"
           fi
