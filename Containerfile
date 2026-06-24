@@ -1,4 +1,4 @@
-FROM registry.redhat.io/rhel9/rhel-bootc:9.7-1773214516
+FROM registry.redhat.io/rhel9/rhel-bootc:9.8-1780414764
 
 # Set up some variables and labels to ID images in our environments
 MAINTAINER sysadmins@example.com
@@ -21,7 +21,7 @@ RUN <<EORUN
 set -xeuo pipefail
 
 #Install web server and relocate the webroot to managed by this image
-dnf -y install httpd && dnf clean all
+dnf -y install httpd cockpit cockpit-pcp && dnf clean all
 systemctl enable httpd
 mv /var/www /usr/share/www
 sed -ie 's,/var/www,/usr/share/www,' /etc/httpd/conf/httpd.conf
