@@ -89,7 +89,7 @@ jobs:
       TAGLIST: ${{ needs.compute-tags.outputs.taglist }}
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install updated container tools
         run: |
