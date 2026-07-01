@@ -127,12 +127,34 @@ jobs:
 
       - name: Push image
         if: github.event_name != 'pull_request'
+        id: push
         run: |
           STORAGE_ROOT=$(podman volume inspect build-storage --format '{{.Mountpoint}}')
           podman login "${DEST_REGISTRY_HOST}" \
             -u "${DEST_REGISTRY_USER}" -p "${DEST_REGISTRY_PASSWORD}"
           podman --root "${STORAGE_ROOT}/storage" push \
+            --digestfile ${{ runner.temp }}/digest \
             "${DEST_REGISTRY_HOST}/${DEST_IMAGE}:${{ github.sha }}-${{ matrix.arch }}"
+          echo "digest=$(cat ${{ runner.temp }}/digest)" >> $GITHUB_OUTPUT
+
+      - name: Generate SBOM
+        if: github.event_name != 'pull_request'
+        uses: anchore/sbom-action@v0.24.0
+        with:
+          image: ${{ env.DEST_REGISTRY_HOST }}/${{ env.DEST_IMAGE }}@${{ steps.push.outputs.digest }}
+          registry-username: ${{ env.DEST_REGISTRY_USER }}
+          registry-password: ${{ env.DEST_REGISTRY_PASSWORD }}
+          format: spdx-json
+          upload-artifact: false
+          upload-release-assets: false
+          output-file: sbom.spdx.json
+
+      - name: Upload SBOM
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ matrix.arch }}
+          path: sbom.spdx.json
 
       - name: Cleanup build storage
         if: always()
@@ -144,20 +166,35 @@ jobs:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     permissions:
+      contents: read
       packages: write
+      id-token: write
     env:
       TAGLIST: ${{ needs.compute-tags.outputs.taglist }}
 
     steps:
+      - uses: actions/checkout@v7
+
       - name: Install updated container tools
         run: |
           set -euo pipefail
-          echo "deb http://azure.archive.ubuntu.com/ubuntu plucky universe main" | sudo tee /etc/apt/sources.list.d/plucky.list
+          if [ "$(dpkg --print-architecture)" = "amd64" ]; then
+            mirror="http://azure.archive.ubuntu.com/ubuntu"
+          else
+            mirror="http://ports.ubuntu.com/ubuntu-ports"
+          fi
+          echo "deb ${mirror} plucky universe main" | sudo tee /etc/apt/sources.list.d/plucky.list
           printf 'Package: *\nPin: release n=plucky\nPin-Priority: 100\n' | sudo tee /etc/apt/preferences.d/plucky.pref
           sudo apt-get update -q
           sudo apt-get install -y --no-install-recommends podman/plucky
 
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v4.1.2
+        with:
+          cosign-release: 'v3.1.1'
+
       - name: Create and push manifest
+        id: manifest-push
         run: |
           set -euo pipefail
           IMAGE_REF="${DEST_REGISTRY_HOST}/${DEST_IMAGE}"
@@ -169,7 +206,32 @@ jobs:
               "docker://${IMAGE_REF}:${{ github.sha }}-${arch}"
           done
           for tag in ${TAGLIST}; do
-            podman manifest push --all localhost/tmp-manifest:build \
-              "${IMAGE_REF}:${tag}"
+            if [ "${tag}" = "${{ github.sha }}" ]; then
+              podman manifest push --all --digestfile /tmp/manifest-digest \
+                localhost/tmp-manifest:build "${IMAGE_REF}:${tag}"
+            else
+              podman manifest push --all localhost/tmp-manifest:build \
+                "${IMAGE_REF}:${tag}"
+            fi
           done
           podman manifest rm localhost/tmp-manifest:build
+          echo "digest=$(cat /tmp/manifest-digest)" >> $GITHUB_OUTPUT
+
+      - name: Download per-arch SBOMs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: sbom-*
+          path: sboms
+
+      - name: Sign manifest and attest SBOMs
+        run: |
+          set -euo pipefail
+          IMAGE_REF="${DEST_REGISTRY_HOST}/${DEST_IMAGE}"
+          DIGEST="${{ steps.manifest-push.outputs.digest }}"
+          cosign login "${DEST_REGISTRY_HOST}" -u "${DEST_REGISTRY_USER}" -p "${DEST_REGISTRY_PASSWORD}"
+          cosign sign --yes --signing-config signing-config.json "${IMAGE_REF}@${DIGEST}"
+          for arch in amd64 arm64; do
+            cosign attest --yes --signing-config signing-config.json \
+              --predicate "sboms/sbom-${arch}/sbom.spdx.json" --type spdxjson \
+              "${IMAGE_REF}@${DIGEST}"
+          done
