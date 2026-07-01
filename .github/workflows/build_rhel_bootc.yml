@@ -151,7 +151,7 @@ jobs:
 
       - name: Upload SBOM
         if: github.event_name != 'pull_request'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sbom-${{ matrix.arch }}
           path: sbom.spdx.json
@@ -218,7 +218,7 @@ jobs:
           echo "digest=$(cat /tmp/manifest-digest)" >> $GITHUB_OUTPUT
 
       - name: Download per-arch SBOMs
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           pattern: sbom-*
           path: sboms
