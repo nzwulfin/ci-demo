@@ -78,9 +78,9 @@ jobs:
         arch: [amd64, arm64]
         include:
           - arch: amd64
-            runner: ubuntu-24.04
+            runner: ubuntu-26.04
           - arch: arm64
-            runner: ubuntu-24.04-arm
+            runner: ubuntu-26.04-arm
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
@@ -90,19 +90,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
-
-      - name: Install updated container tools
-        run: |
-          set -euo pipefail
-          if [ "$(dpkg --print-architecture)" = "amd64" ]; then
-            mirror="http://azure.archive.ubuntu.com/ubuntu"
-          else
-            mirror="http://ports.ubuntu.com/ubuntu-ports"
-          fi
-          echo "deb ${mirror} plucky universe main" | sudo tee /etc/apt/sources.list.d/plucky.list
-          printf 'Package: *\nPin: release n=plucky\nPin-Priority: 100\n' | sudo tee /etc/apt/preferences.d/plucky.pref
-          sudo apt-get update -q
-          sudo apt-get install -y --no-install-recommends crun/plucky podman/plucky
 
       - name: Build image
         run: |
@@ -174,19 +161,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
-
-      - name: Install updated container tools
-        run: |
-          set -euo pipefail
-          if [ "$(dpkg --print-architecture)" = "amd64" ]; then
-            mirror="http://azure.archive.ubuntu.com/ubuntu"
-          else
-            mirror="http://ports.ubuntu.com/ubuntu-ports"
-          fi
-          echo "deb ${mirror} plucky universe main" | sudo tee /etc/apt/sources.list.d/plucky.list
-          printf 'Package: *\nPin: release n=plucky\nPin-Priority: 100\n' | sudo tee /etc/apt/preferences.d/plucky.pref
-          sudo apt-get update -q
-          sudo apt-get install -y --no-install-recommends podman/plucky
 
       - name: Install cosign
         uses: sigstore/cosign-installer@v4.1.2
